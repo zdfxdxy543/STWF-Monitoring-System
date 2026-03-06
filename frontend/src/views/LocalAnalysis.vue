@@ -190,17 +190,19 @@
               <div class="card-header">
                 <span>风速风向</span>
                 <div class="layer-options-row">
-                  <el-checkbox v-model="showWindSpeedChart" class="layer-checkbox">风速</el-checkbox>
-                  <el-checkbox v-model="showWindRoseChart" class="layer-checkbox">风向</el-checkbox>
+                  <el-radio-group v-model="windChartType" size="small">
+                    <el-radio-button label="speed">风速</el-radio-button>
+                    <el-radio-button label="direction">风向</el-radio-button>
+                  </el-radio-group>
                 </div>
               </div>
             </template>
             <div class="wind-split">
-              <div class="wind-panel" v-if="showWindSpeedChart">
+              <div class="wind-panel" v-if="windChartType === 'speed'">
                 <div class="wind-panel-title">风速</div>
                 <div ref="windSpeedChart" class="wind-panel-chart"></div>
               </div>
-              <div class="wind-panel" v-if="showWindRoseChart">
+              <div class="wind-panel" v-if="windChartType === 'direction'">
                 <div class="wind-panel-title">风向</div>
                 <div ref="windRoseChart" class="wind-panel-chart"></div>
               </div>
@@ -241,7 +243,7 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
@@ -325,8 +327,8 @@ export default {
     const loading = ref(false)
     const showHorizontalWindLayer = ref(true)
     const showVerticalWindLayer = ref(false)
-    const showWindSpeedChart = ref(true)
-    const showWindRoseChart = ref(true)
+    // 只能二选一，且至少选一个
+    const windChartType = ref('speed') // 'speed' 或 'direction'
     const selectedTurbine = ref(turbineId.value)
 
     // 图表引用
@@ -1329,6 +1331,19 @@ export default {
       alertChartInstance?.resize()
     }
 
+    // 监听windChartType变化，切换到direction时刷新风玫瑰图
+    watch(windChartType, (val) => {
+      if (val === 'direction') {
+        nextTick(() => {
+          updateWindRoseChart()
+        })
+      } else if (val === 'speed') {
+        nextTick(() => {
+          updateWindSpeedChart()
+        })
+      }
+    })
+
     return {
       turbineInfo,
       runtimeData,
@@ -1348,8 +1363,7 @@ export default {
       Setting,
       showHorizontalWindLayer,
       showVerticalWindLayer,
-      showWindSpeedChart,
-      showWindRoseChart,
+      windChartType,
       formatPower,
       formatOrientation,
       refreshData
@@ -1776,7 +1790,7 @@ export default {
   height: 100%;
  }
 
-/* 风速风向分栏图 */
+/* 风速风向分栏图（单选时自适应宽度） */
 .wind-split {
   flex: 1;
   display: flex;
@@ -1785,7 +1799,7 @@ export default {
 }
 
 .wind-panel {
-  width: 50%;
+  flex: 1 1 0%;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1793,6 +1807,8 @@ export default {
   border: 1px solid rgba(79, 195, 247, 0.3);
   border-radius: 8px;
   padding: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .wind-panel-title {
