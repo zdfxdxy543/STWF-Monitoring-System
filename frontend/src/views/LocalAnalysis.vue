@@ -148,26 +148,28 @@
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>数据概览</span>
+              <span>控制面板</span>
+              <el-select
+                v-model="selectedControlGroup"
+                size="small"
+                class="control-group-select"
+                @change="loadControlGroupConfig"
+              >
+                <el-option
+                  v-for="groupId in 256"
+                  :key="groupId - 1"
+                  :label="`组 ${groupId - 1}`"
+                  :value="groupId - 1"
+                />
+              </el-select>
             </div>
           </template>
-          <div class="overview-content">
-            <div class="overview-item">
-              <span class="overview-label">总发电量</span>
-              <span class="overview-value">{{ formatPower(runtimeData.dailyGeneration * 30) }}</span>
-            </div>
-            <div class="overview-item">
-              <span class="overview-label">运行效率</span>
-              <span class="overview-value">{{ (runtimeData.activePower / turbineInfo.ratedPower * 100).toFixed(1) }}%</span>
-            </div>
-            <div class="overview-item">
-              <span class="overview-label">风速</span>
-              <span class="overview-value">{{ windData.speed }} m/s</span>
-            </div>
-            <div class="overview-item">
-              <span class="overview-label">风向</span>
-              <span class="overview-value">{{ windData.direction }}°</span>
-            </div>
+          <div class="control-panel-content">
+            <el-button class="control-button" type="primary" @click="handleOutControl('OUT1')">{{ getControlButtonLabel('OUT1') }}</el-button>
+            <el-button class="control-button" type="primary" @click="handleOutControl('OUT2')">{{ getControlButtonLabel('OUT2') }}</el-button>
+            <el-button class="control-button" type="primary" @click="handleOutControl('OUT3')">{{ getControlButtonLabel('OUT3') }}</el-button>
+            <el-button class="control-button" type="warning" @click="handlePwmControl('PWM1')">{{ getControlButtonLabel('PWM1') }}</el-button>
+            <el-button class="control-button" type="warning" @click="handlePwmControl('PWM2')">{{ getControlButtonLabel('PWM2') }}</el-button>
           </div>
         </el-card>
       </div>
@@ -245,7 +247,7 @@
 <script>
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 import axios from 'axios'
 import * as THREE from 'three'
@@ -268,6 +270,14 @@ const apiClient = axios.create({
 export default {
   name: 'LocalAnalysis',
   setup() {
+    const createDefaultControlLabels = () => ({
+      OUT1: '',
+      OUT2: '',
+      OUT3: '',
+      PWM1: '',
+      PWM2: ''
+    })
+
     // 获取路由参数
     const route = useRoute()
     const router = useRouter()
@@ -330,6 +340,8 @@ export default {
     // 只能二选一，且至少选一个
     const windChartType = ref('speed') // 'speed' 或 'direction'
     const selectedTurbine = ref(turbineId.value)
+    const selectedControlGroup = ref(0)
+    const controlLabels = ref(createDefaultControlLabels())
 
     // 图表引用
     const windSpeedChart = ref(null)
@@ -368,6 +380,37 @@ export default {
       }
       const normalized = ((orientationValue % 360) + 360) % 360
       return `${normalized.toFixed(1)}°`
+    }
+
+    const getControlButtonLabel = (key) => {
+      const customLabel = controlLabels.value?.[key]
+      if (typeof customLabel === 'string' && customLabel.trim()) {
+        return customLabel.trim()
+      }
+      return key
+    }
+
+    const loadControlGroupConfig = async () => {
+      try {
+        const response = await apiClient.get(`/config/${selectedControlGroup.value}`)
+        const labels = response.data?.control_labels || {}
+        controlLabels.value = {
+          ...createDefaultControlLabels(),
+          ...labels
+        }
+      } catch (error) {
+        console.error('获取控制面板配置失败:', error)
+        controlLabels.value = createDefaultControlLabels()
+      }
+    }
+
+    const sendControlCommand = async (controlKey, value) => {
+      const response = await apiClient.post(`/turbines/${turbineId.value}/controls`, {
+        group_id: selectedControlGroup.value,
+        control_key: controlKey,
+        value
+      })
+      return response.data
     }
 
     // 获取风机信息
@@ -761,6 +804,85 @@ export default {
         ElMessage.error('刷新数据失败')
       } finally {
         loading.value = false
+      }
+    }
+
+    const handleOutControl = async (outputName) => {
+      const displayName = getControlButtonLabel(outputName)
+      try {
+        await ElMessageBox.confirm(
+          `请选择 ${displayName} 的状态`,
+          `${displayName} 控制`,
+          {
+            confirmButtonText: '开',
+            cancelButtonText: '关',
+            distinguishCancelAndClose: true,
+            closeOnClickModal: false,
+            closeOnPressEscape: false,
+            type: 'warning'
+          }
+        )
+        const result = await sendControlCommand(outputName, 0x00)
+        ElMessage.success(`${displayName} 已设置为开，目标地址 ${result.target_ip}`)
+      } catch (error) {
+        if (error === 'cancel') {
+          try {
+            const result = await sendControlCommand(outputName, 0xFF)
+            ElMessage.success(`${displayName} 已设置为关，目标地址 ${result.target_ip}`)
+          } catch (requestError) {
+            console.error(`设置 ${displayName} 为关失败:`, requestError)
+            ElMessage.error(requestError.response?.data?.detail || `${displayName} 控制失败`)
+          }
+          return
+        }
+        if (error === 'close') {
+          ElMessage.info('已取消操作')
+          return
+        }
+        console.error(`设置 ${displayName} 为开失败:`, error)
+        ElMessage.error(error.response?.data?.detail || `${displayName} 控制失败`)
+      }
+    }
+
+    const normalizePwmValue = (value) => {
+      const duty = Number(value)
+      if (!Number.isFinite(duty)) {
+        return 0
+      }
+      return Math.max(0, Math.min(100, Math.round(duty)))
+    }
+
+    const handlePwmControl = async (pwmName) => {
+      const displayName = getControlButtonLabel(pwmName)
+      try {
+        const { value } = await ElMessageBox.prompt(
+          `请输入 ${displayName} 占空比 (0-100)`,
+          `${displayName} 设置`,
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            inputPlaceholder: '例如 50',
+            closeOnClickModal: false,
+            closeOnPressEscape: false,
+            inputValidator: (inputValue) => {
+              const duty = Number(inputValue)
+              if (!Number.isFinite(duty) || duty < 0 || duty > 100) {
+                return '请输入 0-100 之间的数值'
+              }
+              return true
+            }
+          }
+        )
+        const duty = normalizePwmValue(value)
+        const result = await sendControlCommand(pwmName, duty)
+        ElMessage.success(`${displayName} 占空比已设置为 ${duty}%，目标地址 ${result.target_ip}`)
+      } catch (error) {
+        if (error === 'cancel' || error === 'close') {
+          ElMessage.info('已取消设置')
+          return
+        }
+        console.error(`设置 ${displayName} 占空比失败:`, error)
+        ElMessage.error(error.response?.data?.detail || `${displayName} 设置失败`)
       }
     }
 
@@ -1291,6 +1413,7 @@ export default {
 
       // 初始加载数据
       refreshData()
+      loadControlGroupConfig()
 
       // 监听窗口大小变化
       window.addEventListener('resize', handleResize)
@@ -1356,6 +1479,7 @@ export default {
       alertChart,
       threeJsContainer,
       selectedTurbine,
+      selectedControlGroup,
       navigateToTurbine,
       navigateToSettings,
       router,
@@ -1366,7 +1490,11 @@ export default {
       windChartType,
       formatPower,
       formatOrientation,
-      refreshData
+      getControlButtonLabel,
+      loadControlGroupConfig,
+      refreshData,
+      handleOutControl,
+      handlePwmControl
     }
   }
 }
@@ -1664,36 +1792,35 @@ export default {
   flex-direction: column;
 }
 
-.overview-content {
+.control-panel-content {
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
   padding: 0 10px;
   align-items: center;
 }
 
-.overview-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-}
-
-.overview-label {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 4px;
-}
-
-.overview-value {
-  font-size: 14px;
+.control-button {
+  width: 100%;
+  height: 36px;
   font-weight: 600;
-  color: #4FC3F7;
-  text-shadow: 0 0 5px rgba(79, 195, 247, 0.5);
+}
+
+.control-group-select {
+  width: 120px;
+}
+
+@media (max-width: 1200px) {
+  .control-panel-content {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .control-panel-content {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 

@@ -6,6 +6,8 @@ from influxdb_client_3 import (
 )
 import os
 import json
+import socket
+import time
 from dotenv import load_dotenv
 import pandas as pd
 from pydantic import BaseModel
@@ -1130,6 +1132,16 @@ def write_test_data():
 CONFIG_FILE_PATH = "../STM32_Receiver/config.json"
 AI_CONFIG_FILE_PATH = "../backend/config.json"
 TURBINE_FILE_PATH = "turbines.json"
+UDP_CONTROL_TARGET_PORT = int(os.getenv("UDP_CONTROL_TARGET_PORT", "8081"))
+UDP_CONTROL_LISTEN_PORT = int(os.getenv("UDP_CONTROL_LISTEN_PORT", "8080"))
+UDP_CONTROL_DISCOVERY_TIMEOUT = float(os.getenv("UDP_CONTROL_DISCOVERY_TIMEOUT", "1.5"))
+CONTROL_CODE_MAP = {
+    "OUT1": 0x01,
+    "OUT2": 0x02,
+    "OUT3": 0x03,
+    "PWM1": 0x04,
+    "PWM2": 0x05,
+}
 
 class ChannelConfig(BaseModel):
     column: str
@@ -1139,11 +1151,147 @@ class CalculateConfig(BaseModel):
     column: str
     function: str
 
+class ControlLabelsConfig(BaseModel):
+    OUT1: Optional[str] = ''
+    OUT2: Optional[str] = ''
+    OUT3: Optional[str] = ''
+    PWM1: Optional[str] = ''
+    PWM2: Optional[str] = ''
+
+class ControlCommandRequest(BaseModel):
+    group_id: int
+    control_key: str
+    value: int
+
+
+def get_local_ipv4() -> str:
+    """获取当前主机用于局域网通信的IPv4地址。"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            local_ip = sock.getsockname()[0]
+            if local_ip:
+                return local_ip
+    except OSError:
+        pass
+
+    fallback_ip = socket.gethostbyname(socket.gethostname())
+    if fallback_ip and not fallback_ip.startswith("127."):
+        return fallback_ip
+    raise RuntimeError("无法确定主机局域网IP地址")
+
+
+def get_broadcast_ip(local_ip: str) -> str:
+    octets = local_ip.split('.')
+    if len(octets) != 4:
+        raise RuntimeError(f"无效的本机IP地址: {local_ip}")
+    return '.'.join(octets[:3] + ['255'])
+
+
+def get_turbine_callsign(turbine_id: str) -> int:
+    digits = ''.join(ch for ch in turbine_id if ch.isdigit())
+    if not digits:
+        raise ValueError(f"无效的风机编号: {turbine_id}")
+    callsign = int(digits)
+    if not 0 <= callsign <= 255:
+        raise ValueError(f"风机呼号超出范围: {turbine_id}")
+    return callsign
+
+
+def discover_target_ip(sock: socket.socket, callsign: int, data_type: int) -> str:
+    local_ip = get_local_ipv4()
+    network_prefix = '.'.join(local_ip.split('.')[:3])
+    broadcast_ip = get_broadcast_ip(local_ip)
+    request_packet = bytes([0x00, callsign & 0xFF, data_type & 0xFF])
+    deadline = time.monotonic() + UDP_CONTROL_DISCOVERY_TIMEOUT
+
+    sock.sendto(request_packet, (broadcast_ip, UDP_CONTROL_TARGET_PORT))
+
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise socket.timeout("等待地址响应超时")
+        sock.settimeout(remaining)
+        recv_data, _ = sock.recvfrom(1024)
+        if len(recv_data) < 2 or recv_data[0] != 0x03:
+            continue
+
+        if len(recv_data) >= 4:
+            if recv_data[2] != callsign or recv_data[3] != data_type:
+                continue
+
+        last_octet = recv_data[1]
+        return f"{network_prefix}.{last_octet}"
+
+
+def send_udp_control_command(turbine_id: str, data_type: int, control_key: str, value: int) -> Dict[str, str]:
+    control_code = CONTROL_CODE_MAP.get(control_key)
+    if control_code is None:
+        raise ValueError(f"不支持的控制对象: {control_key}")
+
+    callsign = get_turbine_callsign(turbine_id)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.bind(("", UDP_CONTROL_LISTEN_PORT))
+        sock.settimeout(UDP_CONTROL_DISCOVERY_TIMEOUT)
+
+        target_ip = discover_target_ip(sock, callsign, data_type)
+        control_packet = bytes([control_code, value & 0xFF])
+        sock.sendto(control_packet, (target_ip, UDP_CONTROL_TARGET_PORT))
+
+    return {
+        "target_ip": target_ip,
+        "control_key": control_key,
+        "value": str(value),
+        "callsign": str(callsign),
+        "data_type": str(data_type),
+    }
+
 class ClassConfig(BaseModel):
     class_id: int
     database: str
     channels: List[ChannelConfig]
     calculate: List[CalculateConfig]
+    control_labels: Optional[ControlLabelsConfig] = None
+
+
+@app.post("/api/turbines/{turbine_id}/controls")
+def send_turbine_control(turbine_id: str, request: ControlCommandRequest):
+    """按协议发现目标设备地址并发送控制报文。"""
+    try:
+        control_key = request.control_key.upper()
+        if control_key not in CONTROL_CODE_MAP:
+            raise HTTPException(status_code=400, detail=f"无效的控制对象: {request.control_key}")
+
+        data_type = int(request.group_id)
+        if not 0 <= data_type <= 255:
+            raise HTTPException(status_code=400, detail="数据类型组必须在 0-255 之间")
+
+        is_out_control = control_key.startswith("OUT")
+        if is_out_control and request.value not in (0x00, 0xFF):
+            raise HTTPException(status_code=400, detail="OUT 控制值只允许 0x00(开) 或 0xFF(关)")
+        if not is_out_control and not 0 <= request.value <= 100:
+            raise HTTPException(status_code=400, detail="PWM 占空比必须在 0-100 之间")
+
+        result = send_udp_control_command(
+            turbine_id=turbine_id,
+            data_type=data_type,
+            control_key=control_key,
+            value=request.value,
+        )
+        return {
+            "message": f"{control_key} 控制命令已发送",
+            **result,
+        }
+    except HTTPException:
+        raise
+    except socket.timeout:
+        raise HTTPException(status_code=504, detail="等待目标地址响应超时")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"UDP 通信失败: {exc}")
 
 @app.get("/api/config/{class_id}")
 def get_config(class_id: int):
@@ -1156,7 +1304,15 @@ def get_config(class_id: int):
             config = json.load(f)
         
         if str(class_id) in config:
-            return config[str(class_id)]
+            saved_config = config[str(class_id)]
+            saved_config.setdefault("control_labels", {
+                "OUT1": "",
+                "OUT2": "",
+                "OUT3": "",
+                "PWM1": "",
+                "PWM2": ""
+            })
+            return saved_config
         else:
             return {"error": f"组号 {class_id} 的配置不存在"}
     except Exception as e:
@@ -1193,7 +1349,14 @@ def save_config(class_id: int, config: ClassConfig):
                     "function": calc.function
                 }
                 for calc in config.calculate
-            ]
+            ],
+            "control_labels": {
+                "OUT1": (config.control_labels.OUT1 if config.control_labels else '') or '',
+                "OUT2": (config.control_labels.OUT2 if config.control_labels else '') or '',
+                "OUT3": (config.control_labels.OUT3 if config.control_labels else '') or '',
+                "PWM1": (config.control_labels.PWM1 if config.control_labels else '') or '',
+                "PWM2": (config.control_labels.PWM2 if config.control_labels else '') or ''
+            }
         }
         
         # 保存到文件

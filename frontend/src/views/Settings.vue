@@ -138,6 +138,59 @@
             </div>
           </div>
 
+          <div class="setting-row control-label-section">
+            <h3>控制面板按钮命名</h3>
+            <div class="row control-label-row">
+              <div class="col-4">
+                <label class="form-label">OUT1 名称</label>
+                <input
+                  v-model="classConfig.control_labels.OUT1"
+                  type="text"
+                  class="form-control"
+                  placeholder="默认显示 OUT1"
+                >
+              </div>
+              <div class="col-4">
+                <label class="form-label">OUT2 名称</label>
+                <input
+                  v-model="classConfig.control_labels.OUT2"
+                  type="text"
+                  class="form-control"
+                  placeholder="默认显示 OUT2"
+                >
+              </div>
+              <div class="col-4">
+                <label class="form-label">OUT3 名称</label>
+                <input
+                  v-model="classConfig.control_labels.OUT3"
+                  type="text"
+                  class="form-control"
+                  placeholder="默认显示 OUT3"
+                >
+              </div>
+            </div>
+            <div class="row control-label-row">
+              <div class="col-6">
+                <label class="form-label">PWM1 名称</label>
+                <input
+                  v-model="classConfig.control_labels.PWM1"
+                  type="text"
+                  class="form-control"
+                  placeholder="默认显示 PWM1"
+                >
+              </div>
+              <div class="col-6">
+                <label class="form-label">PWM2 名称</label>
+                <input
+                  v-model="classConfig.control_labels.PWM2"
+                  type="text"
+                  class="form-control"
+                  placeholder="默认显示 PWM2"
+                >
+              </div>
+            </div>
+          </div>
+
           <!-- 保存按钮 -->
           <div class="save-button-container">
             <button 
@@ -499,6 +552,14 @@ const router = useRouter()
 const activeTab = ref('receiver')
 const selectedClassId = ref(0)
 
+const createDefaultControlLabels = () => ({
+  OUT1: '',
+  OUT2: '',
+  OUT3: '',
+  PWM1: '',
+  PWM2: ''
+})
+
 // 初始化配置结构
 const classConfig = reactive({
   database: '',
@@ -512,7 +573,8 @@ const classConfig = reactive({
   calculate: Array.from({ length: 2 }, () => ({
     column: '',
     function: ''
-  }))
+  })),
+  control_labels: createDefaultControlLabels()
 })
 
 // AI配置
@@ -586,6 +648,7 @@ const loadClassConfig = async () => {
         calc.column = ''
         calc.function = ''
       })
+      Object.assign(classConfig.control_labels, createDefaultControlLabels())
     } else {
       classConfig.database = data.database || ''
       
@@ -610,6 +673,8 @@ const loadClassConfig = async () => {
           calc.function = ''
         })
       }
+
+      Object.assign(classConfig.control_labels, createDefaultControlLabels(), data.control_labels || {})
     }
   } catch (error) {
     console.error('Error loading config:', error)
@@ -623,6 +688,7 @@ const loadClassConfig = async () => {
       calc.column = ''
       calc.function = ''
     })
+    Object.assign(classConfig.control_labels, createDefaultControlLabels())
   }
 }
 
@@ -638,7 +704,8 @@ const saveConfig = async () => {
         class_id: selectedClassId.value,
         database: classConfig.database,
         channels: classConfig.channels,
-        calculate: classConfig.calculate
+        calculate: classConfig.calculate,
+        control_labels: classConfig.control_labels
       })
     })
     
@@ -1036,12 +1103,20 @@ h3 {
   margin-top: 30px;
 }
 
+.control-label-section {
+  margin-top: 30px;
+}
+
 .calculate-row {
   margin-bottom: 15px;
   padding: 15px;
   background: rgba(79, 195, 247, 0.2);
   border-radius: 8px;
   border-left: 4px solid rgba(79, 195, 247, 0.8);
+}
+
+.control-label-row {
+  margin-bottom: 15px;
 }
 
 /* 保存按钮容器 */

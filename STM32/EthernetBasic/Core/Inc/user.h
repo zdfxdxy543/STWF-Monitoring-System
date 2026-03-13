@@ -14,6 +14,12 @@
 #define SOCKET_SOUR_PORT 8081
 
 #define SEND_DATA 0xFF
+#define ASK       0x00
+#define OUT1      0x01
+#define OUT2      0x02
+#define OUT3      0x03
+#define PWM1      0x04
+#define PWM2      0x05
 
 void system_init(void);
 void system_run(void);

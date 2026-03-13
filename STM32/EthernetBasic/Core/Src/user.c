@@ -109,6 +109,10 @@ void system_init(void)
   
   Flash_Load();
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+  
+  HAL_GPIO_WritePin(OUT1_GPIO_Port, OUT1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(OUT2_GPIO_Port, OUT2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(OUT3_GPIO_Port, OUT3_Pin, GPIO_PIN_RESET);
 }
 
 void system_run(void)
@@ -171,6 +175,57 @@ void Deal_Recv(uint8_t *buf)
     }
     
     atk_mo395q_cmd_write_send_buf_sn(ATK_MO395Q_SOCKET_0, socket0_send_buf, sizeof(socket0_send_buf));
+  }
+  else if(*buf == ASK && *(buf + 1) == call_name && *(buf + 2) == data_type)
+  {
+    socket0_send_done = 0;
+    socket0_send_buf[0] = 0x03;                     // 标识为地址报文
+    socket0_send_buf[1] = IP[3];                    // 来源IP
+    socket0_send_buf[2] = call_name;                // 来源呼号
+    socket0_send_buf[3] = data_type;                // 来源数据种类
+    
+    atk_mo395q_cmd_write_send_buf_sn(ATK_MO395Q_SOCKET_0, socket0_send_buf, sizeof(socket0_send_buf));
+  }
+  else if(*buf == OUT1)
+  {
+    switch(*(buf + 1))
+    {
+      case 0x00:
+        HAL_GPIO_WritePin(OUT1_GPIO_Port, OUT1_Pin, GPIO_PIN_SET);break;
+      case 0xFF:
+        HAL_GPIO_WritePin(OUT1_GPIO_Port, OUT1_Pin, GPIO_PIN_RESET);break;
+      default:break;
+    }
+  }
+  else if(*buf == OUT2)
+  {
+    switch(*(buf + 1))
+    {
+      case 0x00:
+        HAL_GPIO_WritePin(OUT2_GPIO_Port, OUT2_Pin, GPIO_PIN_SET);break;
+      case 0xFF:
+        HAL_GPIO_WritePin(OUT2_GPIO_Port, OUT2_Pin, GPIO_PIN_RESET);break;
+      default:break;
+    }
+  }
+  else if(*buf == OUT3)
+  {
+    switch(*(buf + 1))
+    {
+      case 0x00:
+        HAL_GPIO_WritePin(OUT3_GPIO_Port, OUT3_Pin, GPIO_PIN_SET);break;
+      case 0xFF:
+        HAL_GPIO_WritePin(OUT3_GPIO_Port, OUT3_Pin, GPIO_PIN_RESET);break;
+      default:break;
+    }
+  }
+  else if(*buf == PWM1)
+  {
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, *(buf + 1));
+  }
+  else if(*buf == PWM2)
+  {
+    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, *(buf + 1));
   }
 }
 
