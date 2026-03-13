@@ -1,4 +1,6 @@
 import socket
+import os
+import time
 from datetime import datetime
 
 # 注释掉InfluxDB相关导入，以便在没有依赖的情况下测试
@@ -9,6 +11,19 @@ from datetime import datetime
 # from data_processor import init_data_processor, process_udp_response
 
 import multiprocessing
+
+CONTROL_CODE_MAP = {
+    "OUT1": 0x01,
+    "OUT2": 0x02,
+    "OUT3": 0x03,
+    "PWM1": 0x04,
+    "PWM2": 0x05,
+}
+
+UDP_CONTROL_TARGET_PORT = int(os.getenv("UDP_CONTROL_TARGET_PORT", "8083"))
+UDP_CONTROL_LISTEN_PORT = int(os.getenv("UDP_CONTROL_LISTEN_PORT", "8082"))
+UDP_CONTROL_DISCOVERY_TIMEOUT = float(os.getenv("UDP_CONTROL_DISCOVERY_TIMEOUT", "1.5"))
+UDP_CONTROL_PREFERRED_PREFIX = os.getenv("UDP_CONTROL_PREFERRED_PREFIX", "192.168.1.")
 
 class UDPTool:
     def __init__(self, self_port, target_port, request_data=b"\xFF", recv_buffer_size=1024, recv_timeout=0.5,
@@ -28,6 +43,140 @@ class UDPTool:
         self.scheduler = None  # 移到udp_receiver方法内部创建
         self.exit_event = None
         self.shared_udp_data = None
+
+    @staticmethod
+    def get_local_ipv4(preferred_prefix=UDP_CONTROL_PREFERRED_PREFIX):
+        candidate_ips = []
+
+        try:
+            hostname_ips = socket.gethostbyname_ex(socket.gethostname())[2]
+            candidate_ips.extend(
+                ip for ip in hostname_ips
+                if ip and not ip.startswith("127.") and ip not in candidate_ips
+            )
+        except OSError:
+            pass
+
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.connect(("8.8.8.8", 80))
+                local_ip = sock.getsockname()[0]
+                if local_ip and not local_ip.startswith("127.") and local_ip not in candidate_ips:
+                    candidate_ips.append(local_ip)
+        except OSError:
+            pass
+
+        preferred_ip = next(
+            (ip for ip in candidate_ips if ip.startswith(preferred_prefix)),
+            None,
+        )
+        if preferred_ip:
+            return preferred_ip
+
+        if candidate_ips:
+            return candidate_ips[0]
+
+        fallback_ip = socket.gethostbyname(socket.gethostname())
+        if fallback_ip and not fallback_ip.startswith("127."):
+            return fallback_ip
+
+        raise RuntimeError("无法确定主机局域网IP地址")
+
+    @staticmethod
+    def get_broadcast_ip(local_ip):
+        octets = local_ip.split('.')
+        if len(octets) != 4:
+            raise RuntimeError(f"无效的本机IP地址: {local_ip}")
+        return '.'.join(octets[:3] + ['255'])
+
+    @staticmethod
+    def get_turbine_callsign(turbine_id):
+        digits = ''.join(ch for ch in turbine_id if ch.isdigit())
+        if not digits:
+            raise ValueError(f"无效的风机编号: {turbine_id}")
+        callsign = int(digits)
+        if not 0 <= callsign <= 255:
+            raise ValueError(f"风机呼号超出范围: {turbine_id}")
+        return callsign
+
+    @staticmethod
+    def discover_control_target_ip(sock, callsign, data_type,
+                                   target_port=UDP_CONTROL_TARGET_PORT,
+                                   timeout=UDP_CONTROL_DISCOVERY_TIMEOUT,
+                                   preferred_prefix=UDP_CONTROL_PREFERRED_PREFIX):
+        local_ip = UDPTool.get_local_ipv4(preferred_prefix=preferred_prefix)
+        broadcast_ip = UDPTool.get_broadcast_ip(local_ip)
+        request_packet = bytes([0x00, callsign & 0xFF, data_type & 0xFF])
+        deadline = time.monotonic() + timeout
+
+        print(
+            f"[UDP控制] 发送地址请求 | 本机IP={local_ip} | 广播={broadcast_ip}:{target_port} | "
+            f"callsign={callsign} | data_type={data_type} | payload={request_packet.hex().upper()}"
+        )
+        sock.sendto(request_packet, (broadcast_ip, target_port))
+
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise socket.timeout("等待目标地址响应超时")
+            sock.settimeout(remaining)
+            recv_data, sender_addr = sock.recvfrom(1024)
+            if len(recv_data) < 2 or recv_data[0] != 0x03:
+                continue
+            if len(recv_data) >= 4 and (recv_data[2] != callsign or recv_data[3] != data_type):
+                continue
+
+            target_ip = sender_addr[0]
+            print(
+                f"[UDP控制] 收到地址应答 | 来源目标={target_ip}:{target_port} | "
+                f"payload={recv_data.hex().upper()}"
+            )
+            return target_ip
+
+    @staticmethod
+    def send_control_command(turbine_id, data_type, control_key, value,
+                             listen_port=UDP_CONTROL_LISTEN_PORT,
+                             target_port=UDP_CONTROL_TARGET_PORT,
+                             timeout=UDP_CONTROL_DISCOVERY_TIMEOUT,
+                             preferred_prefix=UDP_CONTROL_PREFERRED_PREFIX):
+        control_code = CONTROL_CODE_MAP.get(control_key)
+        if control_code is None:
+            raise ValueError(f"不支持的控制对象: {control_key}")
+
+        callsign = UDPTool.get_turbine_callsign(turbine_id)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.bind(("", listen_port))
+            sock.settimeout(timeout)
+
+            target_ip = UDPTool.discover_control_target_ip(
+                sock=sock,
+                callsign=callsign,
+                data_type=data_type,
+                target_port=target_port,
+                timeout=timeout,
+                preferred_prefix=preferred_prefix,
+            )
+            control_packet = bytes([control_code, value & 0xFF])
+            print(
+                f"[UDP控制] 准备发送控制报文 | turbine_id={turbine_id} | target={target_ip}:{target_port} | "
+                f"control_key={control_key} | value={value} | payload={control_packet.hex().upper()}"
+            )
+            sent_bytes = sock.sendto(control_packet, (target_ip, target_port))
+            print(
+                f"[UDP控制] 控制报文已发送 | target={target_ip}:{target_port} | sent_bytes={sent_bytes}"
+            )
+
+        return {
+            "target_ip": target_ip,
+            "control_key": control_key,
+            "value": str(value),
+            "callsign": str(callsign),
+            "data_type": str(data_type),
+            "sent_bytes": str(sent_bytes),
+            "payload_hex": control_packet.hex().upper(),
+        }
 
     def udp_receiver(self, exit_event, shared_udp_data):
         # 导入scheduler模块

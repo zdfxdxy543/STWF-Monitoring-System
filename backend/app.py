@@ -6,8 +6,8 @@ from influxdb_client_3 import (
 )
 import os
 import json
+import sys
 import socket
-import time
 from dotenv import load_dotenv
 import pandas as pd
 from pydantic import BaseModel
@@ -19,6 +19,13 @@ import random
 from assistant import get_or_build_wind_farm_kb
 from forecast import Forecast
 from training import GBDTTrainer, TrainConfig
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.normpath(os.path.join(BASE_DIR, ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.append(REPO_ROOT)
+
+from STM32_Receiver.control_client import CONTROL_CODE_MAP, send_udp_control_command
 
 # 加载环境变量
 load_dotenv()
@@ -82,9 +89,9 @@ wco = write_client_options(success_callback = success,
 client = InfluxDBClient3(host=INFLUXDB_URL, token=INFLUXDB_TOKEN, database=INFLUXDB_BUCKET, write_client_options=wco)
 
 # 创建Forecast实例并启动预测任务
-forecast_engine = Forecast()
-forecast_engine._forecast_task()
-forecast_engine.start_forecast_task()
+# forecast_engine = Forecast()
+# forecast_engine._forecast_task()
+# forecast_engine.start_forecast_task()
 
 # 数据模型
 class TurbineBase(BaseModel):
@@ -1132,16 +1139,6 @@ def write_test_data():
 CONFIG_FILE_PATH = "../STM32_Receiver/config.json"
 AI_CONFIG_FILE_PATH = "../backend/config.json"
 TURBINE_FILE_PATH = "turbines.json"
-UDP_CONTROL_TARGET_PORT = int(os.getenv("UDP_CONTROL_TARGET_PORT", "8081"))
-UDP_CONTROL_LISTEN_PORT = int(os.getenv("UDP_CONTROL_LISTEN_PORT", "8080"))
-UDP_CONTROL_DISCOVERY_TIMEOUT = float(os.getenv("UDP_CONTROL_DISCOVERY_TIMEOUT", "1.5"))
-CONTROL_CODE_MAP = {
-    "OUT1": 0x01,
-    "OUT2": 0x02,
-    "OUT3": 0x03,
-    "PWM1": 0x04,
-    "PWM2": 0x05,
-}
 
 class ChannelConfig(BaseModel):
     column: str
@@ -1162,91 +1159,6 @@ class ControlCommandRequest(BaseModel):
     group_id: int
     control_key: str
     value: int
-
-
-def get_local_ipv4() -> str:
-    """获取当前主机用于局域网通信的IPv4地址。"""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.connect(("8.8.8.8", 80))
-            local_ip = sock.getsockname()[0]
-            if local_ip:
-                return local_ip
-    except OSError:
-        pass
-
-    fallback_ip = socket.gethostbyname(socket.gethostname())
-    if fallback_ip and not fallback_ip.startswith("127."):
-        return fallback_ip
-    raise RuntimeError("无法确定主机局域网IP地址")
-
-
-def get_broadcast_ip(local_ip: str) -> str:
-    octets = local_ip.split('.')
-    if len(octets) != 4:
-        raise RuntimeError(f"无效的本机IP地址: {local_ip}")
-    return '.'.join(octets[:3] + ['255'])
-
-
-def get_turbine_callsign(turbine_id: str) -> int:
-    digits = ''.join(ch for ch in turbine_id if ch.isdigit())
-    if not digits:
-        raise ValueError(f"无效的风机编号: {turbine_id}")
-    callsign = int(digits)
-    if not 0 <= callsign <= 255:
-        raise ValueError(f"风机呼号超出范围: {turbine_id}")
-    return callsign
-
-
-def discover_target_ip(sock: socket.socket, callsign: int, data_type: int) -> str:
-    local_ip = get_local_ipv4()
-    network_prefix = '.'.join(local_ip.split('.')[:3])
-    broadcast_ip = get_broadcast_ip(local_ip)
-    request_packet = bytes([0x00, callsign & 0xFF, data_type & 0xFF])
-    deadline = time.monotonic() + UDP_CONTROL_DISCOVERY_TIMEOUT
-
-    sock.sendto(request_packet, (broadcast_ip, UDP_CONTROL_TARGET_PORT))
-
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise socket.timeout("等待地址响应超时")
-        sock.settimeout(remaining)
-        recv_data, _ = sock.recvfrom(1024)
-        if len(recv_data) < 2 or recv_data[0] != 0x03:
-            continue
-
-        if len(recv_data) >= 4:
-            if recv_data[2] != callsign or recv_data[3] != data_type:
-                continue
-
-        last_octet = recv_data[1]
-        return f"{network_prefix}.{last_octet}"
-
-
-def send_udp_control_command(turbine_id: str, data_type: int, control_key: str, value: int) -> Dict[str, str]:
-    control_code = CONTROL_CODE_MAP.get(control_key)
-    if control_code is None:
-        raise ValueError(f"不支持的控制对象: {control_key}")
-
-    callsign = get_turbine_callsign(turbine_id)
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.bind(("", UDP_CONTROL_LISTEN_PORT))
-        sock.settimeout(UDP_CONTROL_DISCOVERY_TIMEOUT)
-
-        target_ip = discover_target_ip(sock, callsign, data_type)
-        control_packet = bytes([control_code, value & 0xFF])
-        sock.sendto(control_packet, (target_ip, UDP_CONTROL_TARGET_PORT))
-
-    return {
-        "target_ip": target_ip,
-        "control_key": control_key,
-        "value": str(value),
-        "callsign": str(callsign),
-        "data_type": str(data_type),
-    }
 
 class ClassConfig(BaseModel):
     class_id: int
