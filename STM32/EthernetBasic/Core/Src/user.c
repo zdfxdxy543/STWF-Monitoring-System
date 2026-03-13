@@ -6,8 +6,11 @@ uint32_t DataBuffer[1];
 
 uint8_t IP[4] = {192,168,1,23}, GWIP[4] = {192,168,1,1}, Mask[4] = {255,255,255,0};
 uint8_t socket0_send_buf[32];
-uint8_t socket0_recv_buf[1024];
+uint8_t socket0_recv_buf[512];
+uint8_t socket1_send_buf[32];
+uint8_t socket1_recv_buf[512];
 uint8_t socket0_send_done = 1;
+uint8_t socket1_send_done = 1;
 uint8_t call_name = 255;
 uint8_t data_type = 255;
 uint8_t status = 2;
@@ -45,6 +48,11 @@ void socket_send_buf_free_cb(atk_mo395q_socket_t *socket)
         case ATK_MO395Q_SOCKET_0:
         {
             socket0_send_done = 1;
+            break;
+        }
+        case ATK_MO395Q_SOCKET_1:
+        {
+            socket1_send_done = 1;
             break;
         }
         default:
@@ -101,6 +109,25 @@ void system_init(void)
   socket_config.send.size = sizeof(socket0_send_buf);
   socket_config.recv.buf =  socket0_recv_buf;
   socket_config.recv.size = sizeof(socket0_recv_buf);
+  socket_config.send_buf_free_cb = socket_send_buf_free_cb;
+  socket_config.recv_cb = socket_recv_cb;
+  atk_mo395q_socket_config(&socket_config);
+  
+  HAL_Delay(100);
+  
+  socket_config.socket_index = ATK_MO395Q_SOCKET_1;
+  socket_config.enable = ATK_MO395Q_ENABLE;
+  socket_config.proto = SOCKET_PROTO;
+  socket_config.des_ip[0] = SOCKET_DES_IP_1;
+  socket_config.des_ip[1] = SOCKET_DES_IP_2;
+  socket_config.des_ip[2] = SOCKET_DES_IP_3;
+  socket_config.des_ip[3] = SOCKET_DES_IP_4;
+  socket_config.des_port = SOCKET_CON_DES_PORT;
+  socket_config.sour_port = SOCKET_CON_SOUR_PORT;
+  socket_config.send.buf = socket1_send_buf;
+  socket_config.send.size = sizeof(socket1_send_buf);
+  socket_config.recv.buf = socket1_recv_buf;
+  socket_config.recv.size = sizeof(socket1_recv_buf);
   socket_config.send_buf_free_cb = socket_send_buf_free_cb;
   socket_config.recv_cb = socket_recv_cb;
   atk_mo395q_socket_config(&socket_config);
@@ -176,15 +203,15 @@ void Deal_Recv(uint8_t *buf)
     
     atk_mo395q_cmd_write_send_buf_sn(ATK_MO395Q_SOCKET_0, socket0_send_buf, sizeof(socket0_send_buf));
   }
-  else if(*buf == ASK && *(buf + 1) == call_name && *(buf + 2) == data_type)
+  else if(*buf == ASK && *(buf + 1) == call_name && *(buf + 2) == data_type && socket1_send_done == 1)
   {
-    socket0_send_done = 0;
-    socket0_send_buf[0] = 0x03;                     // 标识为地址报文
-    socket0_send_buf[1] = IP[3];                    // 来源IP
-    socket0_send_buf[2] = call_name;                // 来源呼号
-    socket0_send_buf[3] = data_type;                // 来源数据种类
+    socket1_send_done = 0;
+    socket1_send_buf[0] = 0x03;                     // 标识为地址报文
+    socket1_send_buf[1] = IP[3];                    // 来源IP
+    socket1_send_buf[2] = call_name;                // 来源呼号
+    socket1_send_buf[3] = data_type;                // 来源数据种类
     
-    atk_mo395q_cmd_write_send_buf_sn(ATK_MO395Q_SOCKET_0, socket0_send_buf, sizeof(socket0_send_buf));
+    atk_mo395q_cmd_write_send_buf_sn(ATK_MO395Q_SOCKET_1, socket1_send_buf, sizeof(socket1_send_buf));
   }
   else if(*buf == OUT1)
   {

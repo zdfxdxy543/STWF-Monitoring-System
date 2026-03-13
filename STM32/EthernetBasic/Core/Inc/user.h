@@ -13,6 +13,9 @@
 #define SOCKET_DES_PORT  8080
 #define SOCKET_SOUR_PORT 8081
 
+#define SOCKET_CON_DES_PORT  8082
+#define SOCKET_CON_SOUR_PORT 8083
+
 #define SEND_DATA 0xFF
 #define ASK       0x00
 #define OUT1      0x01
