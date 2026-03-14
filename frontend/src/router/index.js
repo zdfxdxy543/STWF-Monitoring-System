@@ -4,6 +4,7 @@ import FaultAlarm from '../views/FaultAlarm.vue'
 import Analysis from '../views/Analysis.vue'
 import LocalAnalysis from '../views/LocalAnalysis.vue'
 import Settings from '../views/Settings.vue'
+import SolarThermal from '../views/SolarThermal.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -32,6 +33,11 @@ const router = createRouter({
       path: '/local-analysis/:turbineId',
       name: 'turbineDetail',
       component: LocalAnalysis
+    },
+    {
+      path: '/solar-thermal',
+      name: 'solarThermal',
+      component: SolarThermal
     },
     {
       path: '/settings',

@@ -17,6 +17,7 @@
             <div class="nav-menu">
               <router-link to="/" class="nav-item active">总体预览</router-link>
               <router-link to="/fault-alarm" class="nav-item">故障告警</router-link>
+              <router-link to="/solar-thermal" class="nav-item">光热电厂</router-link>
               <!-- <router-link to="/local-analysis" class="nav-item">局部分析</router-link> -->
             </div>
           </div>
