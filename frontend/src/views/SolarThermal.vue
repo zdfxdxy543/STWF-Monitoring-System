@@ -621,76 +621,113 @@ onUnmounted(() => {
 
 <style scoped>
 .solar-thermal-container {
+  position: relative;
   width: 100%;
   height: 100%;
+  padding: 10px;
+  overflow: hidden;
+  background: rgba(39, 64, 139, 0.8);
+  backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
 }
 
 .toolbar {
-  margin-bottom: 20px;
+  width: 100%;
+  height: 60px;
+  padding: 0 10px;
+  margin-bottom: 15px;
+  z-index: 3;
+}
+
+.toolbar .el-card {
+  height: 100%;
+  border-radius: 12px;
 }
 
 .toolbar-content {
+  height: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 15px;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 30px;
+  gap: 20px;
 }
 
 .logo {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 20px;
-  font-weight: bold;
+  color: white;
+}
+
+.logo-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 0 10px rgba(79, 195, 247, 0.7);
 }
 
 .nav-menu {
   display: flex;
-  gap: 20px;
+  gap: 8px;
 }
 
 .nav-item {
+  padding: 6px 12px;
+  border-radius: 6px;
   color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  transition: all 0.3s;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(79, 195, 247, 0.3);
   color: white;
+  box-shadow: 0 0 10px rgba(79, 195, 247, 0.5);
 }
 
 .nav-item.active {
-  background: rgba(79, 195, 247, 0.3);
+  background: rgba(79, 195, 247, 0.5);
   color: white;
+  box-shadow: 0 0 15px rgba(79, 195, 247, 0.7);
+  border-color: rgba(79, 195, 247, 0.8);
 }
 
 .toolbar-right {
   display: flex;
-  gap: 10px;
   align-items: center;
+  gap: 10px;
 }
 
 .main-content {
+  position: relative;
+  width: 100%;
   flex: 1;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px 10px 10px;
+  overflow: auto;
+  min-height: 0;
+  z-index: 2;
 }
 
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 20px;
-  height: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(250px, 1fr));
+  gap: 15px;
+  flex: 1;
+  min-height: 0;
 }
 
 .chart-item {
@@ -698,17 +735,69 @@ onUnmounted(() => {
   min-height: 0;
 }
 
+.chart-item :deep(.el-card) {
+  height: 100%;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-item :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 16px 16px 16px;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 16px;
-  font-weight: bold;
+  padding: 5px 10px;
+}
+
+.card-header span {
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
 }
 
 .echart-container {
   width: 100%;
-  height: calc(100% - 50px);
-  min-height: 200px;
+  height: 100%;
+  min-height: 0;
+}
+
+@media (max-width: 1200px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(6, minmax(260px, auto));
+  }
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    height: auto;
+    padding: 0 5px;
+  }
+
+  .toolbar-content {
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .toolbar-left {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .toolbar-right {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .main-content {
+    padding: 0 5px 10px 5px;
+  }
 }
 </style>
