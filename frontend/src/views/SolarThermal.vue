@@ -135,12 +135,23 @@ const refreshData = () => {
 
 // 初始化所有图表
 const initCharts = () => {
+  // Recreate chart instances to avoid stale canvas sizes after layout changes.
+  chartInstances.forEach(chart => {
+    chart.dispose()
+  })
+  chartInstances = []
+
   initPowerChart()
   initRadiationChart()
   initTemperatureChart()
   initSteamFlowChart()
   initTurbineEfficiencyChart()
   initDailyGenerationChart()
+
+  // Ensure final container size is applied after cards finish layout.
+  requestAnimationFrame(() => {
+    handleResize()
+  })
 }
 
 // 发电功率趋势图
@@ -155,6 +166,9 @@ const initPowerChart = () => {
     },
     legend: {
       data: ['实际功率', '额定功率'],
+      top: 0,
+      left: 'center',
+      itemGap: 16,
       textStyle: {
         color: '#fff'
       }
@@ -162,7 +176,8 @@ const initPowerChart = () => {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      top: '24%',
+      bottom: '10%',
       containLabel: true
     },
     xAxis: {
@@ -242,7 +257,8 @@ const initRadiationChart = () => {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      top: '10%',
+      bottom: '10%',
       containLabel: true
     },
     xAxis: {
@@ -312,6 +328,9 @@ const initTemperatureChart = () => {
     },
     legend: {
       data: ['冷罐', '热罐'],
+      top: 0,
+      left: 'center',
+      itemGap: 16,
       textStyle: {
         color: '#fff'
       }
@@ -319,7 +338,8 @@ const initTemperatureChart = () => {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      top: '24%',
+      bottom: '10%',
       containLabel: true
     },
     xAxis: {
@@ -386,6 +406,9 @@ const initSteamFlowChart = () => {
     },
     legend: {
       data: ['主蒸汽流量', '给水流量'],
+      top: 0,
+      left: 'center',
+      itemGap: 16,
       textStyle: {
         color: '#fff'
       }
@@ -393,7 +416,8 @@ const initSteamFlowChart = () => {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      top: '24%',
+      bottom: '10%',
       containLabel: true
     },
     xAxis: {
@@ -466,6 +490,9 @@ const initTurbineEfficiencyChart = () => {
     },
     legend: {
       data: ['设计效率', '实际效率'],
+      top: 0,
+      left: 'center',
+      itemGap: 16,
       textStyle: {
         color: '#fff'
       }
@@ -473,7 +500,8 @@ const initTurbineEfficiencyChart = () => {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      top: '24%',
+      bottom: '10%',
       containLabel: true
     },
     xAxis: {
@@ -544,7 +572,8 @@ const initDailyGenerationChart = () => {
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      top: '10%',
+      bottom: '10%',
       containLabel: true
     },
     xAxis: {
@@ -715,8 +744,8 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 0 10px 10px 10px;
-  overflow: auto;
+  padding: 0;
+  overflow: hidden;
   min-height: 0;
   z-index: 2;
 }
@@ -724,10 +753,11 @@ onUnmounted(() => {
 .charts-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(250px, 1fr));
-  gap: 15px;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 12px;
   flex: 1;
   min-height: 0;
+  height: 100%;
 }
 
 .chart-item {
@@ -743,9 +773,12 @@ onUnmounted(() => {
 }
 
 .chart-item :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 12px 16px 16px 16px;
+  padding: 10px 12px 12px 12px;
+  overflow: hidden;
 }
 
 .card-header {
@@ -763,14 +796,20 @@ onUnmounted(() => {
 
 .echart-container {
   width: 100%;
-  height: 100%;
+  flex: 1;
+  height: auto;
   min-height: 0;
 }
 
 @media (max-width: 1200px) {
+  .main-content {
+    overflow: auto;
+  }
+
   .charts-grid {
     grid-template-columns: 1fr;
-    grid-template-rows: repeat(6, minmax(260px, auto));
+    grid-template-rows: repeat(6, minmax(220px, 1fr));
+    height: auto;
   }
 }
 
