@@ -302,10 +302,10 @@ export default {
 
     // 方法
     const formatPower = (power) => {
-      if (power >= 1000) {
-        return (power / 1000).toFixed(1) + ' MW'
-      }
-      return Number(power || 0).toFixed(2) + ' kW'
+      return Number(power || 0).toLocaleString('zh-CN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) + ' kWh'
     }
 
     const formatKilowatt = (power) => {
