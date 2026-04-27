@@ -854,7 +854,7 @@ def get_daily_stats():
                 count += 1
 
             if count > 0:
-                avg_power = total_generation / count / 3600
+                avg_power = total_generation
 
         run_time = count
         avg_efficiency = 75.0

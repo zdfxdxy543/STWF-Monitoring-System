@@ -30,11 +30,11 @@
               <div class="data-content">
                 <div class="data-item">
                   <div class="data-label">当日总发电量</div>
-                  <div class="data-value">{{ formatPower(dailyStats.totalGeneration || 0) }}</div>
+                  <div class="data-value">{{ formatEnergy(dailyStats.totalGeneration || 0) }}</div>
                 </div>
                 <div class="data-item">
                   <div class="data-label">平均发电功率</div>
-                  <div class="data-value">{{ formatPower(dailyStats.avgPower || 0) }}</div>
+                  <div class="data-value">{{ formatPower((dailyStats.avgPower / (dailyStats.runTime || 1)) || 0) }}</div>
                 </div>
                 <div class="data-item">
                   <div class="data-label">运行时长</div>
@@ -63,7 +63,7 @@
                 </div>
                 <div class="data-item">
                   <div class="data-label">平均发电功率</div>
-                  <div class="data-value">{{ formatPower(actualGeneration.solarThermal || 0) }}</div>
+                  <div class="data-value">{{ formatPower((actualGeneration.solarThermal / (dailyStats.runTime || 1)) || 0) }}</div>
                 </div>
                 <div class="data-item">
                   <div class="data-label">运行时长</div>
@@ -92,7 +92,7 @@
                 </div>
                 <div class="data-item">
                   <div class="data-label">平均发电功率</div>
-                  <div class="data-value">{{ formatPower(((dailyStats.avgPower || 0) + (actualGeneration.solarThermal || 0)) / 2) }}</div>
+                  <div class="data-value">{{ formatPower(((dailyStats.avgPower || 0) + (actualGeneration.solarThermal || 0)) / (dailyStats.runTime || 1)) }}</div>
                 </div>
                 <div class="data-item">
                   <div class="data-label">运行时长</div>
@@ -301,11 +301,18 @@ export default {
     }
 
     // 方法
-    const formatPower = (power) => {
+    const formatEnergy = (power) => {
       return Number(power || 0).toLocaleString('zh-CN', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }) + ' kWh'
+    }
+
+    const formatPower = (power) => {
+      return Number(power || 0).toLocaleString('zh-CN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) + ' kW'
     }
 
     const formatKilowatt = (power) => {
@@ -702,6 +709,7 @@ export default {
       actualGeneration,
       powerLineChart,
       threeJsContainer,
+      formatEnergy,
       formatPower,
       formatKilowatt,
       refreshData,
