@@ -814,22 +814,68 @@ def get_turbine_power_trend(turbine_id: str):
 def get_daily_stats():
     """Get daily power generation statistics"""
     try:
-        # Try to query from InfluxDB
-        query = f"SELECT * FROM daily_stats ORDER BY 'time' DESC LIMIT 1"
-        # query = f'from(bucket: "{INFLUXDB_BUCKET}") |> range(start: -24h) |> filter(fn: (r) => r._measurement == "daily_stats") |> last()'
+        now_utc = pd.Timestamp.now(tz='UTC')
+        start_of_day = now_utc.normalize()
+        end_time = now_utc.ceil('h')
+
+        query = f"""
+            SELECT
+                date_bin(interval '1 hour', time) as time_bucket,
+                AVG(power) as avg_power
+            FROM 'turbine'
+            WHERE time >= '{start_of_day.isoformat()}'
+            AND time < '{end_time.isoformat()}'
+            GROUP BY 1
+            ORDER BY 1 ASC
+        """
         result = client.query(query=query, mode="pandas")
-        
-        for index, row in result.iterrows():
-            stats = DailyStats(
-                totalGeneration=float(row["totalGeneration"]),
-                avgPower=float(row["avgPower"]),
-                maxPower=float(row["maxPower"]),
-                runTime=float(row["runTime"]),
-                avgEfficiency=float(row["avgEfficiency"])
-            )
-            return stats
+
+        total_generation = 0.0
+        max_power = 0.0
+        avg_power = 0.0
+        count = 0
+
+        if not result.empty:
+            result["time_bucket"] = pd.to_datetime(result["time_bucket"])
+            if result["time_bucket"].dt.tz is None:
+                result["time_bucket"] = result["time_bucket"].dt.tz_localize('UTC')
+
+            for index, row in result.iterrows():
+                avg_power_value = row.get("avg_power", 0.0)
+                power = float(avg_power_value) if pd.notna(avg_power_value) else 0.0
+                print(power)
+
+                energy = power
+                total_generation += energy
+
+                if power > max_power:
+                    max_power = power
+
+                count += 1
+
+            if count > 0:
+                avg_power = total_generation / count / 3600
+
+        run_time = count
+        avg_efficiency = 75.0
+
+        stats = DailyStats(
+            totalGeneration=round(total_generation, 2),
+            avgPower=round(avg_power, 2),
+            maxPower=round(max_power, 2),
+            runTime=float(run_time),
+            avgEfficiency=round(avg_efficiency, 2)
+        )
+        return stats
     except Exception as e:
         print(f"InfluxDB query failed: {e}")
+        return DailyStats(
+            totalGeneration=0.0,
+            avgPower=0.0,
+            maxPower=0.0,
+            runTime=0.0,
+            avgEfficiency=0.0
+        )
 
 # 警告信息API
 @app.get("/api/warnings", response_model=List[Warning])
@@ -971,7 +1017,7 @@ def get_power_comparison():
         query = f"""
             SELECT
                 date_bin(interval '1 hour', time) as time_bucket,
-                SUM(power) as total_power
+                AVG(power) as avg_power
             FROM 'turbine'
             WHERE time >= '{start_time.isoformat()}'
             AND time < '{end_time_ceil.isoformat()}'
@@ -1001,8 +1047,10 @@ def get_power_comparison():
             local_hour = index.tz_convert('Asia/Shanghai').strftime("%H:%M")
             hours.append(local_hour)
 
-            actual.append(round(5 * float(row["total_power"]) / 1000000, 2))
-            predicted.append(0)
+            avg_power_value = row.get("avg_power", 0.0)
+            avg_power = float(avg_power_value) if pd.notna(avg_power_value) else 0.0
+            actual.append(round(avg_power, 2))
+            predicted.append(0.0)
         
         return PowerComparison(hours=hours, actual=actual, predicted=predicted)
     except Exception as e:

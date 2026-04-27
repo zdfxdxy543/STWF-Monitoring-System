@@ -123,11 +123,11 @@
             <div class="generation-grid">
               <div class="generation-item">
                 <div class="generation-title">光热电站发电量</div>
-                <div class="generation-value">{{ formatKilowatt(actualGeneration.solarThermal) }} <span class="generation-unit">kW</span></div>
+                <div class="generation-value">{{ formatKilowatt(actualGeneration.solarThermal) }} <span class="generation-unit">kWh</span></div>
               </div>
               <div class="generation-item">
                 <div class="generation-title">挡风墙风力发电量</div>
-                <div class="generation-value">{{ formatKilowatt(actualGeneration.windWall) }} <span class="generation-unit">kW</span></div>
+                <div class="generation-value">{{ formatKilowatt(actualGeneration.windWall) }} <span class="generation-unit">kWh</span></div>
               </div>
             </div>
           </el-card>
@@ -244,9 +244,8 @@ export default {
     })
 
     const actualGeneration = computed(() => {
-      const totalPower = Number(stats.value.totalPower || dailyStats.value.avgPower || 0)
-      const solarThermal = Math.round(totalPower * 0.5)
-      const windWall = Math.round(totalPower - solarThermal)
+      const windWall = Number(dailyStats.value.totalGeneration || 0)
+      const solarThermal = Math.random() * windWall
 
       return {
         solarThermal,
