@@ -343,7 +343,7 @@ export default {
       if (power >= 1000) {
         return (power / 1000).toFixed(1) + ' MW'
       }
-      return power.toFixed(0) + ' kW'
+      return Number(power || 0).toFixed(2) + ' kW'
     }
 
     const formatOrientation = (orientation) => {
@@ -941,9 +941,19 @@ export default {
           return NaN
         }
 
+        const formatSeriesValue = (value) => {
+          const numericValue = Number(value)
+          return Number.isFinite(numericValue) ? Number(numericValue.toFixed(2)) : null
+        }
+
+        const actualTailLength = Math.min(4, hours.length)
+
         const actualData = hours
-          .map((h, i) => [toMs(h), power[i]])
-          .filter(([t, v]) => Number.isFinite(t) && v != null)
+          .map((h, i) => {
+            const isTailPoint = i >= hours.length - actualTailLength
+            return [toMs(h), isTailPoint ? Number.NaN : formatSeriesValue(power[i])]
+          })
+          .filter(([t]) => Number.isFinite(t))
 
         // 构建预测数据，直接使用hours的最后四个时间值作为X轴
         let forecastData = []
@@ -953,7 +963,7 @@ export default {
           
           forecastData = forecast.map((v, index) => {
             // 使用对应的forecastHours时间
-            return [toMs(forecastHours[index]), v]
+            return [toMs(forecastHours[index]), formatSeriesValue(v)]
           })
         }
 
@@ -968,7 +978,7 @@ export default {
 
               let str = `${hh}:${mi}<br/>`
               params.forEach(p => {
-                str += `${p.marker} ${p.seriesName}: ${p.value[1]} kW<br/>`
+                str += `${p.marker} ${p.seriesName}: ${Number(p.value[1] || 0).toFixed(2)} kW<br/>`
               })
               return str
             },
@@ -1435,7 +1445,6 @@ export default {
       alertChartInstance?.resize()
     }
 
-    // 监听windChartType变化，切换到direction时刷新风玫瑰图
     watch(turbineId, (newTurbineId, oldTurbineId) => {
       if (!newTurbineId || newTurbineId === oldTurbineId) {
         return
@@ -1447,15 +1456,22 @@ export default {
     })
 
     watch(windChartType, (val) => {
-      if (val === 'direction') {
-        nextTick(() => {
-          updateWindRoseChart()
+      nextTick(() => {
+        windSpeedChartInstance?.dispose()
+        windSpeedChartInstance = null
+        windRoseChartInstance?.dispose()
+        windRoseChartInstance = null
+
+        if (val === 'direction') {
+          initWindRoseChart()
+        } else if (val === 'speed') {
+          initWindSpeedChart()
+        }
+
+        requestAnimationFrame(() => {
+          handleResize()
         })
-      } else if (val === 'speed') {
-        nextTick(() => {
-          updateWindSpeedChart()
-        })
-      }
+      })
     })
 
     return {
@@ -1891,7 +1907,7 @@ export default {
  .chart-container {
   flex: 1;
   min-height: 0;
-  overflow: hiddel;
+  overflow: hidden;
   padding: 0;
  }
 

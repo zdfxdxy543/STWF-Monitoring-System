@@ -189,7 +189,7 @@ mock_turbines = [
         "name": "NW1",
         "location": "IM_Zone_A",
         "status": "running",
-        "power": 1500,
+        "power": random.uniform(1000, 2000),
         "windSpeed": 12.5,
         "temperature": 28,
         "vibration": 1.2,
@@ -201,7 +201,7 @@ mock_turbines = [
         "name": "NW2",
         "location": "IM_Zone_A",
         "status": "warning",
-        "power": 1800,
+        "power": random.uniform(1000, 2000),
         "windSpeed": 15.2,
         "temperature": 32,
         "vibration": 3.5,
@@ -213,7 +213,7 @@ mock_turbines = [
         "name": "NW3",
         "location": "IM_Zone_B",
         "status": "running",
-        "power": 2200,
+        "power": random.uniform(1000, 2000),
         "windSpeed": 10.8,
         "temperature": 26,
         "vibration": 0.8,
@@ -1080,19 +1080,19 @@ def write_test_data():
             point.field("efficiency", int(turbine["efficiency"]))
             client.write(record=point, write_precision="s")
 
-        for turbine in mock_turbine_info:
-            point = Point("turbine_info")
-            point.tag("turbine_id", turbine["id"])
-            point.field("name", turbine["name"])
-            point.field("location", turbine["location"])
-            point.field("bladeLength", float(turbine["bladeLength"]))
-            point.field("rotorDiameter", float(turbine["rotorDiameter"]))
-            point.field("ratedPower", float(turbine["ratedPower"]))
-            point.field("hubHeight", float(turbine["hubHeight"]))
-            point.field("bladeCount", int(turbine["bladeCount"]))
-            point.field("speedRange", turbine["speedRange"])
-            point.field("model", turbine["model"])
-            client.write(record=point, write_precision="s")
+        # for turbine in mock_turbine_info:
+        #     point = Point("turbine_info")
+        #     point.tag("turbine_id", turbine["id"])
+        #     point.field("name", turbine["name"])
+        #     point.field("location", turbine["location"])
+        #     point.field("bladeLength", float(turbine["bladeLength"]))
+        #     point.field("rotorDiameter", float(turbine["rotorDiameter"]))
+        #     point.field("ratedPower", float(turbine["ratedPower"]))
+        #     point.field("hubHeight", float(turbine["hubHeight"]))
+        #     point.field("bladeCount", int(turbine["bladeCount"]))
+        #     point.field("speedRange", turbine["speedRange"])
+        #     point.field("model", turbine["model"])
+        #     client.write(record=point, write_precision="s")
         
         for turbine in mock_system_info:
             point = Point("system_info")

@@ -22,7 +22,7 @@
       <div class="metrics-grid">
         <div class="metric-item">
           <div class="metric-label">发电功率</div>
-          <div class="metric-value">{{ turbine.power.toFixed(0) }} kW</div>
+          <div class="metric-value">{{ turbine.power.toFixed(2) }} kW</div>
           <div class="metric-trend">
             <el-icon :color="turbine.power > 2000 ? '#67c23a' : '#e6a23c'">
               <TrendCharts />

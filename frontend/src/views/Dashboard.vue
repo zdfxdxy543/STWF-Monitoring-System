@@ -284,7 +284,16 @@ export default {
     const fetchPowerComparison = async () => {
       try {
         const response = await apiClient.get('/power/comparison')
-        powerComparison.value = response.data
+        const roundSeries = (series) => (Array.isArray(series) ? series.map(value => {
+          const numericValue = Number(value)
+          return Number.isFinite(numericValue) ? Number(numericValue.toFixed(2)) : 0
+        }) : [])
+
+        powerComparison.value = {
+          ...response.data,
+          actual: roundSeries(response.data?.actual),
+          predicted: roundSeries(response.data?.predicted)
+        }
         updatePowerLineChart()
       } catch (error) {
         console.error('获取发电量对比数据失败:', error)
@@ -297,12 +306,13 @@ export default {
       if (power >= 1000) {
         return (power / 1000).toFixed(1) + ' MW'
       }
-      return power.toFixed(0) + ' kW'
+      return Number(power || 0).toFixed(2) + ' kW'
     }
 
     const formatKilowatt = (power) => {
       return Number(power || 0).toLocaleString('zh-CN', {
-        maximumFractionDigits: 0
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
       })
     }
 
@@ -364,6 +374,16 @@ export default {
       const option = {
         tooltip: {
           trigger: 'axis',
+          formatter: (params) => {
+            if (!params.length) return ''
+            const axisValue = params[0].axisValue ?? ''
+            let content = `${axisValue}<br/>`
+            params.forEach(point => {
+              const value = Number(point.data)
+              content += `${point.marker} ${point.seriesName}: ${Number.isFinite(value) ? value.toFixed(2) : '0.00'} kW<br/>`
+            })
+            return content
+          },
           textStyle: {
             color: 'white'
           },
