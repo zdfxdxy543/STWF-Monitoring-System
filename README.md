@@ -56,3 +56,6 @@ A monitoring system suitable for solar thermal wind fields, developed using Vue3
 # 20260222修改  
 前两天完成了AI预测，使用理论模型和经验模型两重预测。AI故障分析我觉得不靠谱，因为太多参数未知，导致必须简化模型，而一旦简化模型，故障预测的小波又没有意义了。  
 另外，完善了数据采集部分，现在可以支持多通道数据的四则运算（不太清楚会不会出bug，还没有验证过）
+
+# 20260427修改
+要进行测试，请在cmd中输入`curl -X POST http://localhost:8000/api/test/write`，即可写入测试数据。  

@@ -28,17 +28,22 @@
             <el-button :icon="Setting" @click="navigateToSettings">
               系统设置
             </el-button>
-            <el-select v-model="selectedTurbine" placeholder="选择风机" clearable @change="navigateToTurbine">
-              <el-option label="风机1" value="T001" />
-              <el-option label="风机2" value="T002" />
-              <el-option label="风机3" value="T003" />
-              <el-option label="风机4" value="T004" />
-              <el-option label="风机5" value="T005" />
-              <el-option label="风机6" value="T006" />
-              <el-option label="风机7" value="T007" />
-              <el-option label="风机8" value="T008" />
-              <el-option label="风机9" value="T009" />
-              <el-option label="风机10" value="T010" />
+            <el-select
+              v-model="selectedTurbine"
+              placeholder="选择或输入风机编号（0-255）"
+              clearable
+              filterable
+              allow-create
+              default-first-option
+              :reserve-keyword="false"
+              @change="navigateToTurbine"
+            >
+              <el-option
+                v-for="item in turbineOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
             </el-select>
           </div>
         </div>
@@ -235,6 +240,13 @@ export default {
     const turbines = ref([])
     const filterStatus = ref('')
     const selectedTurbine = ref('')
+    const turbineOptions = Array.from({ length: 256 }, (_, index) => {
+      const turbineId = `T${String(index).padStart(3, '0')}`
+      return {
+        label: `风机${index} (${turbineId})`,
+        value: turbineId
+      }
+    })
     const sortBy = ref('power')
     const currentPage = ref(1)
     const pageSize = ref(8)
@@ -354,10 +366,38 @@ export default {
     }
 
     // 跳转到风机详情页
-    const navigateToTurbine = (turbineId) => {
-      if (turbineId) {
-        router.push(`/local-analysis/${turbineId}`)
+    const normalizeTurbineId = (input) => {
+      if (!input) {
+        return null
       }
+
+      const normalizedInput = String(input).trim().toUpperCase()
+      const match = normalizedInput.match(/^T?(\d{1,3})$/)
+      if (!match) {
+        return null
+      }
+
+      const turbineNumber = Number(match[1])
+      if (!Number.isInteger(turbineNumber) || turbineNumber < 0 || turbineNumber > 255) {
+        return null
+      }
+
+      return `T${String(turbineNumber).padStart(3, '0')}`
+    }
+
+    const navigateToTurbine = (turbineId) => {
+      if (!turbineId) {
+        return
+      }
+
+      const normalizedId = normalizeTurbineId(turbineId)
+      if (!normalizedId) {
+        ElMessage.warning('请输入 0-255 范围内的风机编号，例如 12 或 T012')
+        return
+      }
+
+      selectedTurbine.value = normalizedId
+      router.push(`/local-analysis/${normalizedId}`)
     }
 
     // 跳转到设置页面
@@ -706,6 +746,7 @@ export default {
       stats,
       filterStatus,
       selectedTurbine,
+      turbineOptions,
       sortBy,
       currentPage,
       pageSize,
@@ -1029,12 +1070,25 @@ export default {
   flex-direction: column;
 }
 
+.chart-item :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px;
+}
+
 .chart-container {
   flex: 1;
-  padding: 10px 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
 }
 
 .chart {
+  flex: 1;
+  min-height: 0;
   width: 100%;
   height: 100%;
 }
