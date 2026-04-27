@@ -5,50 +5,13 @@
       <div ref="threeJsContainer" class="three-js-container"></div>
     </div>
 
-    <!-- 工具栏 -->
-    <div class="toolbar">
-      <el-card shadow="hover">
-        <div class="toolbar-content">
-          <div class="toolbar-left">
-            <div class="logo">
-              <el-icon size="24"><WindPower /></el-icon>
-              <span class="logo-text">风电智能监控平台</span>
-            </div>
-            <div class="nav-menu">
-              <router-link to="/" class="nav-item active">总体预览</router-link>
-              <router-link to="/fault-alarm" class="nav-item">故障告警</router-link>
-              <router-link to="/solar-thermal" class="nav-item">光热电厂</router-link>
-              <!-- <router-link to="/local-analysis" class="nav-item">局部分析</router-link> -->
-            </div>
-          </div>
-          <div class="toolbar-right">
-            <el-button type="primary" :icon="Refresh" @click="refreshData">
-              刷新数据
-            </el-button>
-            <el-button :icon="Setting" @click="navigateToSettings">
-              系统设置
-            </el-button>
-            <el-select
-              v-model="selectedTurbine"
-              placeholder="选择或输入风机编号（0-255）"
-              clearable
-              filterable
-              allow-create
-              default-first-option
-              :reserve-keyword="false"
-              @change="navigateToTurbine"
-            >
-              <el-option
-                v-for="item in turbineOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
-          </div>
-        </div>
-      </el-card>
-    </div>
+    <GlobalHeader
+      active-page="dashboard"
+      v-model="selectedTurbine"
+      @refresh="refreshData"
+      @open-settings="navigateToSettings"
+      @turbine-change="navigateToTurbine"
+    />
 
     <!-- 主要内容区域 -->
     <div class="main-content">
@@ -199,6 +162,7 @@ import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import axios from 'axios'
 import TurbineCard from '@components/TurbineCard.vue'
+import GlobalHeader from '@components/GlobalHeader.vue'
 import {
   DataLine,
   TrendCharts,
@@ -231,7 +195,8 @@ const apiClient = axios.create({
 export default {
   name: 'Dashboard',
   components: {
-    TurbineCard
+    TurbineCard,
+    GlobalHeader
   },
   setup() {
     const router = useRouter()
@@ -240,13 +205,6 @@ export default {
     const turbines = ref([])
     const filterStatus = ref('')
     const selectedTurbine = ref('')
-    const turbineOptions = Array.from({ length: 256 }, (_, index) => {
-      const turbineId = `T${String(index).padStart(3, '0')}`
-      return {
-        label: `风机${index} (${turbineId})`,
-        value: turbineId
-      }
-    })
     const sortBy = ref('power')
     const currentPage = ref(1)
     const pageSize = ref(8)
@@ -366,38 +324,10 @@ export default {
     }
 
     // 跳转到风机详情页
-    const normalizeTurbineId = (input) => {
-      if (!input) {
-        return null
-      }
-
-      const normalizedInput = String(input).trim().toUpperCase()
-      const match = normalizedInput.match(/^T?(\d{1,3})$/)
-      if (!match) {
-        return null
-      }
-
-      const turbineNumber = Number(match[1])
-      if (!Number.isInteger(turbineNumber) || turbineNumber < 0 || turbineNumber > 255) {
-        return null
-      }
-
-      return `T${String(turbineNumber).padStart(3, '0')}`
-    }
-
     const navigateToTurbine = (turbineId) => {
-      if (!turbineId) {
-        return
+      if (turbineId) {
+        router.push(`/local-analysis/${turbineId}`)
       }
-
-      const normalizedId = normalizeTurbineId(turbineId)
-      if (!normalizedId) {
-        ElMessage.warning('请输入 0-255 范围内的风机编号，例如 12 或 T012')
-        return
-      }
-
-      selectedTurbine.value = normalizedId
-      router.push(`/local-analysis/${normalizedId}`)
     }
 
     // 跳转到设置页面
@@ -746,7 +676,6 @@ export default {
       stats,
       filterStatus,
       selectedTurbine,
-      turbineOptions,
       sortBy,
       currentPage,
       pageSize,

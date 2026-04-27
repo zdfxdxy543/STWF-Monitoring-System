@@ -89,9 +89,9 @@ wco = write_client_options(success_callback = success,
 client = InfluxDBClient3(host=INFLUXDB_URL, token=INFLUXDB_TOKEN, database=INFLUXDB_BUCKET, write_client_options=wco)
 
 # 创建Forecast实例并启动预测任务
-# forecast_engine = Forecast()
-# forecast_engine._forecast_task()
-# forecast_engine.start_forecast_task()
+forecast_engine = Forecast()
+forecast_engine._forecast_task()
+forecast_engine.start_forecast_task()
 
 # 数据模型
 class TurbineBase(BaseModel):

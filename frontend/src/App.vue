@@ -109,6 +109,41 @@ html, body, #app {
   color: white;
 }
 
+/* 亮色面板场景下避免白底白字 */
+.el-select-dropdown,
+.el-dropdown-menu,
+.el-popper,
+.el-autocomplete-suggestion,
+.el-picker-panel,
+.el-cascader-panel,
+.el-message-box,
+.el-dialog {
+  color: #1f2937;
+}
+
+.el-select-dropdown__item,
+.el-dropdown-menu__item,
+.el-cascader-node,
+.el-autocomplete-suggestion__list li,
+.el-message-box__content,
+.el-dialog__body,
+.el-date-table td,
+.el-picker-panel__footer button {
+  color: #1f2937;
+}
+
+.el-select-dropdown__item.is-hovering,
+.el-dropdown-menu__item:not(.is-disabled):hover,
+.el-autocomplete-suggestion__list li:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.el-select-dropdown__item.is-selected,
+.el-dropdown-menu__item.is-active {
+  color: #1565c0;
+}
+
 /* 自定义标签样式 */
 .el-tag {
   background: rgba(79, 195, 247, 0.3);

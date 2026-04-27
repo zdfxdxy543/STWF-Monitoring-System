@@ -1,43 +1,12 @@
 <template>
   <div class="fault-alarm-container">
-    <div class="toolbar">
-      <el-card shadow="hover">
-        <div class="toolbar-content">
-          <div class="toolbar-left">
-            <div class="logo">
-              <el-icon size="24"><WindPower /></el-icon>
-              <span class="logo-text">风电智能监控平台</span>
-            </div>
-            <div class="nav-menu">
-              <router-link to="/" class="nav-item">总体预览</router-link>
-              <router-link to="/fault-alarm" class="nav-item active">故障告警</router-link>
-              <router-link to="/solar-thermal" class="nav-item">光热电厂</router-link>
-              <!--<router-link to="/local-analysis" class="nav-item">局部分析</router-link> -->
-            </div>
-          </div>
-          <div class="toolbar-right">
-            <el-button type="primary" :icon="Refresh" @click="refreshData">
-              刷新数据
-            </el-button>
-            <el-button :icon="Setting" @click="navigateToSettings">
-              系统设置
-            </el-button>
-            <el-select v-model="selectedTurbine" placeholder="选择风机" clearable @change="navigateToTurbine">
-              <el-option label="风机1" value="T001" />
-              <el-option label="风机2" value="T002" />
-              <el-option label="风机3" value="T003" />
-              <el-option label="风机4" value="T004" />
-              <el-option label="风机5" value="T005" />
-              <el-option label="风机6" value="T006" />
-              <el-option label="风机7" value="T007" />
-              <el-option label="风机8" value="T008" />
-              <el-option label="风机9" value="T009" />
-              <el-option label="风机10" value="T010" />
-            </el-select>
-          </div>
-        </div>
-      </el-card>
-    </div>
+    <GlobalHeader
+      active-page="fault-alarm"
+      v-model="selectedTurbine"
+      @refresh="refreshData"
+      @open-settings="navigateToSettings"
+      @turbine-change="navigateToTurbine"
+    />
 
     <div class="main-content">
       <div class="chart-column">
@@ -75,7 +44,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import axios from 'axios'
-import { Refresh, Setting, WindPower } from '@element-plus/icons-vue'
+import GlobalHeader from '@components/GlobalHeader.vue'
 
 const API_BASE_URL = 'http://localhost:8000/api'
 
@@ -89,6 +58,9 @@ const apiClient = axios.create({
 
 export default {
   name: 'FaultAlarm',
+  components: {
+    GlobalHeader
+  },
   setup() {
     const router = useRouter()
     const selectedTurbine = ref('')
@@ -369,9 +341,7 @@ export default {
       refreshData,
       navigateToSettings,
       navigateToTurbine,
-      Refresh,
-      Setting,
-      WindPower
+      GlobalHeader
     }
   }
 }

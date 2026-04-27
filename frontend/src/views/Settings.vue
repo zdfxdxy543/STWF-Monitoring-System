@@ -1,7 +1,16 @@
 <template>
   <div class="settings-container">
-    <!-- 左边栏 -->
-    <div class="sidebar">
+    <GlobalHeader
+      active-page="settings"
+      v-model="selectedTurbine"
+      @refresh="refreshData"
+      @open-settings="navigateToSettings"
+      @turbine-change="navigateToTurbine"
+    />
+
+    <div class="settings-body">
+      <!-- 左边栏 -->
+      <div class="sidebar">
       <div 
         class="sidebar-item" 
         :class="{ active: activeTab === 'home' }"
@@ -32,8 +41,8 @@
       </div>
     </div>
 
-    <!-- 主要页面 -->
-    <div class="main-content">
+      <!-- 主要页面 -->
+      <div class="main-content">
       <!-- 接收设置页面 -->
       <div v-if="activeTab === 'receiver'">
         <h1>接收设置</h1>
@@ -220,9 +229,9 @@
                 <option 
                   v-for="id in 256" 
                   :key="id" 
-                  :value="'T' + String(id).padStart(3, '0')"
+                  :value="'T' + String(id - 1).padStart(3, '0')"
                 >
-                  T{{ String(id).padStart(3, '0') }}
+                  T{{ String(id - 1).padStart(3, '0') }}
                 </option>
               </select>
             </div>
@@ -247,7 +256,7 @@
                   v-model="turbineConfig.info.id" 
                   type="text" 
                   class="form-control"
-                  placeholder="例如: T001"
+                  placeholder="例如: T000"
                 >
               </div>
               <div class="col-6">
@@ -520,6 +529,7 @@
           </div>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- 复制模态框 -->
@@ -547,10 +557,34 @@
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import GlobalHeader from '@components/GlobalHeader.vue'
 
 const router = useRouter()
+const selectedTurbine = ref('')
 const activeTab = ref('receiver')
 const selectedClassId = ref(0)
+
+const navigateToTurbine = (turbineIdInput) => {
+  if (turbineIdInput) {
+    router.push(`/local-analysis/${turbineIdInput}`)
+  }
+}
+
+const navigateToSettings = () => {
+  router.push('/settings')
+}
+
+const refreshData = () => {
+  if (activeTab.value === 'receiver') {
+    loadClassConfig()
+  } else if (activeTab.value === 'turbine') {
+    loadAllTurbines()
+    loadTurbineConfig()
+  } else if (activeTab.value === 'ai') {
+    loadAIConfig()
+  }
+}
 
 const createDefaultControlLabels = () => ({
   OUT1: '',
@@ -589,10 +623,10 @@ const isTraining = ref(false)
 const trainResult = ref(null)
 
 // 风机配置相关
-const selectedTurbineId = ref('T001')
+const selectedTurbineId = ref('T000')
 const turbineConfig = reactive({
   info: {
-    id: 'T001',
+    id: 'T000',
     name: '',
     location: '',
     bladeLength: 0,
@@ -798,7 +832,7 @@ const trainModel = async () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        turbine_id: 'T001',
+        turbine_id: selectedTurbineId.value,
         use_test_data: false
       })
     })
@@ -818,7 +852,7 @@ const trainModel = async () => {
     trainResult.value = {
       success: false,
       message: `训练失败: ${error.message}`,
-      turbine_id: 'T001'
+      turbine_id: selectedTurbineId.value
     }
     alert('模型训练失败！')
   } finally {
@@ -985,10 +1019,94 @@ const copyFromTurbine = async (sourceTurbineId) => {
 /* 主容器 */
 .settings-container {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
   background: rgba(39, 64, 139, 0.8);
   backdrop-filter: blur(10px);
+}
+
+.toolbar {
+  width: 100%;
+  height: 60px;
+  padding: 0 10px;
+  margin: 10px 0 15px 0;
+  z-index: 3;
+}
+
+.toolbar :deep(.el-card) {
+  height: 100%;
+  border-radius: 12px;
+}
+
+.toolbar-content {
+  height: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+}
+
+.logo-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 0 10px rgba(79, 195, 247, 0.7);
+}
+
+.nav-menu {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-item {
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.nav-item:hover {
+  background: rgba(79, 195, 247, 0.3);
+  color: white;
+  box-shadow: 0 0 10px rgba(79, 195, 247, 0.5);
+}
+
+.nav-item.active {
+  background: rgba(79, 195, 247, 0.5);
+  color: white;
+  box-shadow: 0 0 15px rgba(79, 195, 247, 0.7);
+  border-color: rgba(79, 195, 247, 0.8);
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 /* 侧边栏 */
@@ -1069,20 +1187,40 @@ h3 {
 /* 输入框和选择框样式 */
 .form-control,
 .form-select {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.6);
   border-radius: 6px;
-  color: white;
+  color: #1e293b;
   padding: 10px;
   transition: all 0.3s ease;
 }
 
 .form-control:focus,
 .form-select:focus {
-  background: rgba(255, 255, 255, 0.15);
+  background: #ffffff;
   border-color: rgba(79, 195, 247, 0.8);
   box-shadow: 0 0 10px rgba(79, 195, 247, 0.5);
   outline: none;
+}
+
+.form-control::placeholder {
+  color: #64748b;
+}
+
+.form-select option {
+  color: #1e293b;
+  background: #ffffff;
+}
+
+.form-control:-webkit-autofill,
+.form-control:-webkit-autofill:hover,
+.form-control:-webkit-autofill:focus,
+.form-select:-webkit-autofill,
+.form-select:-webkit-autofill:hover,
+.form-select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #1e293b;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 /* 通道设置 */
@@ -1308,6 +1446,28 @@ h3 {
 @media (max-width: 768px) {
   .settings-container {
     flex-direction: column;
+  }
+
+  .toolbar {
+    height: auto;
+    padding: 0 5px;
+  }
+
+  .toolbar-content {
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .toolbar-left {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .sidebar {

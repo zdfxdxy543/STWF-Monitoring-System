@@ -1,31 +1,12 @@
 <template>
   <div class="solar-thermal-container">
-    <!-- 工具栏 -->
-    <div class="toolbar">
-      <el-card shadow="hover">
-        <div class="toolbar-content">
-          <div class="toolbar-left">
-            <div class="logo">
-              <el-icon size="24"><Sunrise /></el-icon>
-              <span class="logo-text">光热电厂监控系统</span>
-            </div>
-            <div class="nav-menu">
-              <router-link to="/" class="nav-item">总体预览</router-link>
-              <router-link to="/fault-alarm" class="nav-item">故障告警</router-link>
-              <router-link to="/solar-thermal" class="nav-item active">光热电厂</router-link>
-            </div>
-          </div>
-          <div class="toolbar-right">
-            <el-button type="primary" :icon="Refresh" @click="refreshData">
-              刷新数据
-            </el-button>
-            <el-button :icon="Setting" @click="navigateToSettings">
-              系统设置
-            </el-button>
-          </div>
-        </div>
-      </el-card>
-    </div>
+    <GlobalHeader
+      active-page="solar-thermal"
+      v-model="selectedTurbine"
+      @refresh="refreshData"
+      @open-settings="navigateToSettings"
+      @turbine-change="navigateToTurbine"
+    />
 
     <!-- 主要内容区域 -->
     <div class="main-content">
@@ -110,10 +91,11 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Refresh, Setting, Sunrise } from '@element-plus/icons-vue'
+import GlobalHeader from '@components/GlobalHeader.vue'
 import * as echarts from 'echarts'
 
 const router = useRouter()
+const selectedTurbine = ref('')
 const powerChart = ref(null)
 const radiationChart = ref(null)
 const temperatureChart = ref(null)
@@ -126,6 +108,12 @@ let chartInstances = []
 // 导航到设置页面
 const navigateToSettings = () => {
   router.push('/settings')
+}
+
+const navigateToTurbine = (turbineIdInput) => {
+  if (turbineIdInput) {
+    router.push(`/local-analysis/${turbineIdInput}`)
+  }
 }
 
 // 刷新数据
